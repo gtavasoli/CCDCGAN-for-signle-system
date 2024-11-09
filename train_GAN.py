@@ -63,6 +63,6 @@ constrain.train(X_npy=GAN_calculation_folder_path+'train_X.npy',y_npy=GAN_calcul
 ##### 5. train CCDCGAN model
 import gan.ccdcgan as gan
 ccdcgan = gan.CCDCGAN()
-ccdcgan.train(epochs = 1000000，batch_size=128, save_interval=5000,GAN_calculation_folder_path=GAN_calculation_folder_path,X_train_name='train_X.npy')
+ccdcgan.train(epochs = 1000000, batch_size=128, save_interval=5000,GAN_calculation_folder_path=GAN_calculation_folder_path,X_train_name='train_X.npy')
 
-print（'the training process has finished'）
+print('the training process has finished')
