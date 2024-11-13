@@ -13,6 +13,11 @@ from scipy.ndimage import maximum_filter, gaussian_filter
 from scipy.ndimage.morphology import generate_binary_structure, binary_erosion
 
 import math
+from tqdm import tqdm
+import multiprocessing
+
+num_cores = multiprocessing.cpu_count()
+
 
 #####define the used atom list
 def get_atomlist_atomindex(atomlisttype='all element',a_list=None):#atomlisttype indicate which kind of list to be used; 'all element' is to use the whole peroidic table, 'specified' is to give a list on our own
@@ -79,13 +84,16 @@ def get_image_one_atom(atom,fakeatoms_grid,nbins,scale):
 	image[:,:] = pijk.flatten()
 	return image.reshape(nbins,nbins,nbins)
 
+
 def get_image_all_atoms(atoms,nbins,scale,norm,num_cores,atomlisttype,a_list):
 	fakeatoms_grid = get_fakeatoms_grid(atoms,nbins)
-	cell = atoms.get_cell()
+	
+	# cell = atoms.get_cell()
+	
 	imageall_gen = Parallel(n_jobs=num_cores)(delayed(get_image_one_atom)(atom,fakeatoms_grid,nbins,scale) for atom in atoms)
 	imageall_list = list(imageall_gen)
 	cod_atomlist,cod_atomindex = get_atomlist_atomindex(atomlisttype,a_list)
-	nchannel = len(cod_atomlist)
+	# nchannel = len(cod_atomlist)
 	channellist = []
 	for i,atom in enumerate(atoms):
 		channel = cod_atomindex[atom.symbol]
@@ -97,7 +105,7 @@ def get_image_all_atoms(atoms,nbins,scale,norm,num_cores,atomlisttype,a_list):
 	for i,atom in enumerate(atoms):
 		nnc = channellist.index(cod_atomindex[atom.symbol])
 		img_i = imageall_list[i]
-		image[:,:,:,nnc] += img_i * (img_i>=0.02)
+		image[:,:,:,nnc] += np.where(img_i>=0.02, img_i, 0)
 		 
 	return image,channellist
 
@@ -121,15 +129,22 @@ def generate_sites_graph(sites_graph_path,atomlisttype,a_list,data_path,data_typ
 	scale=get_scale(0.26)
 	filename=os.listdir(data_path)#'./TC/chem_info/')
 
+	total_files = len(filename)
+	progress_bar = tqdm(total=total_files, desc='Processing Files', unit='file')
+
 	for eachfile in filename:
 		if eachfile.endswith(data_type):
 			filename=data_path+eachfile
 			atoms=get_atoms(filename,data_type)
 			atoms_=basis_translate(atoms)
-			image,channellist=get_image_all_atoms(atoms_,64,scale,norm,8,atomlisttype,a_list)
+			image,channellist=get_image_all_atoms(atoms_,64,scale,norm,num_cores,atomlisttype,a_list)
 
 			savefilename=sites_graph_path+eachfile[:-len(data_type)-1]+'.npy'
 			np.save(savefilename,image)
+
+			progress_bar.update(1)
+
+	progress_bar.close()
 
 def generate_combined_sites_graph(sites_graph_path,atomlisttype,a_list,data_path,data_type):
 	if not os.path.exists(sites_graph_path):
@@ -144,7 +159,7 @@ def generate_combined_sites_graph(sites_graph_path,atomlisttype,a_list,data_path
 			print(filename)
 			atoms=get_atoms(filename,data_type)
 			atoms_=basis_translate(atoms)
-			image,channellist=get_image_all_atoms(atoms_,64,scale,norm,8,atomlisttype,a_list)
+			image,channellist=get_image_all_atoms(atoms_,64,scale,norm,num_cores,atomlisttype,a_list)
 
 			_,_,_,nc=image.shape
 			combined_image=np.zeros([64,64,64])
@@ -160,39 +175,45 @@ def generate_lattice_graph(lattice_graph_path,atomlisttype,a_list,data_path,data
 
 	scale=get_scale(0.26)
 	filename=os.listdir(data_path)
-    
+	
+	total_files = len(filename)
+	progress_bar = tqdm(total=total_files, desc='Processing Files', unit='file')
+
 	for eachfile in filename:
 		if eachfile.endswith(data_type):
 
 			filename=data_path+eachfile
-			print(filename)
 			atoms=get_atoms(filename,data_type)
 			atoms_=extract_cell(atoms)
-			image,channellist=get_image_all_atoms(atoms_,32,scale,norm,8,atomlisttype,a_list)
+			image,channellist=get_image_all_atoms(atoms_,32,scale,norm,num_cores * 2,atomlisttype,a_list)
 			image=image.reshape(32,32,32)
 
 			savefilename=lattice_graph_path+eachfile[:-len(data_type)-1]+'.npy'
 			np.save(savefilename,image)
 
+			progress_bar.update(1)
+
+	progress_bar.close()
+
 def generate_crystal_2d_graph(encodedgraphsavepath='./encoded_sites/',encodedlatticesavepath='./encoded_lattice/',crystal_2d_graph_path='./crystal_2d_graphs/'):#e.g.: dt.generate_crystal_2d_graph(encodedgraphsavepath='./original_encoded_sites/',encodedlatticesavepath='./original_encoded_lattice/',crystal_2d_graph_path='./original_crystal_2d_graphs/')
 	if not os.path.exists(crystal_2d_graph_path):
 		os.makedirs(crystal_2d_graph_path)
 	filename=os.listdir(encodedlatticesavepath)
-	for eachnpyfile in filename:
+	for eachnpyfile in tqdm(filename, desc='Processing Files', unit='file'):
 		if eachnpyfile.endswith('.npy'):
-			encodeddirectory=encodedlatticesavepath+eachnpyfile
-			crystal_2d_graph=np.zeros([6,200])
-			encoded_lattice=np.load(encodeddirectory)
-			crystal_2d_graph[0,:]=encoded_lattice.reshape(200)
-			encodeddirectory=encodedgraphsavepath+eachnpyfile
-			for i in range(1,3):
-				encoded_sites=np.load(encodeddirectory)[:,i-1]
-				crystal_2d_graph[i,:]=encoded_sites.reshape(200)
-			savefilename=crystal_2d_graph_path+eachnpyfile
-			np.save(savefilename,crystal_2d_graph)
+			encodeddirectory = encodedlatticesavepath + eachnpyfile
+			crystal_2d_graph = np.zeros([6, 200])
+			encoded_lattice = np.load(encodeddirectory)
+			crystal_2d_graph[0, :] = encoded_lattice.reshape(200)
+			encodeddirectory = encodedgraphsavepath + eachnpyfile
+			for i in range(1, 3):
+				encoded_sites = np.load(encodeddirectory)[:, i - 1]
+				crystal_2d_graph[i, :] = encoded_sites.reshape(200)
+			savefilename = crystal_2d_graph_path + eachnpyfile
+			np.save(savefilename, crystal_2d_graph)
 			for i in range(200):
-				if crystal_2d_graph[0,i]!=encoded_lattice[i]:
-					print(crystal_2d_graph[0,i],encoded_lattice[i])
+				if crystal_2d_graph[0, i] != encoded_lattice[i]:
+					print(crystal_2d_graph[0, i], encoded_lattice[i])
 					exit()
 
 def change_lattice_in_crystal_2d_graph(previous_crystal_2d_graph_path='./crystal_2d_graphs/',encodedlatticesavepath='./encoded_lattice/',crystal_2d_graph_path='./crystal_2d_graphs/'):
