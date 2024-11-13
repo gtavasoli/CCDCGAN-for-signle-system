@@ -134,7 +134,7 @@ def lattice_autocoder(lattice_graph_path='./test_lattice/',encoded_graph_path='.
 				test_inputs_batch=np.load(lattice_graph_path+test_batch_name_list[interation]+'.npy').reshape(batch_size,32,32,32,1)
 				mse_t = sess.run(mse_loss2,feed_dict={x_vector:test_inputs_batch})#,o_vector:test_object_batch})
 				mse_test += mse_t
-			print (epoch,' ',mse_tr/len(batch_name_list),' ',mse_test/len(test_batch_name_list))
+			print (epoch, '/', (n_ae_epochs - 1), ' ',mse_tr/len(batch_name_list),' ',mse_test/len(test_batch_name_list))
 
 			if min_mse_test > mse_test/len(test_batch_name_list) and mse_test/len(test_batch_name_list)<5e-5:
 				min_mse_test=mse_test/len(test_batch_name_list)

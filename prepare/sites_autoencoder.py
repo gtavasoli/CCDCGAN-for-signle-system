@@ -146,7 +146,7 @@ def sites_autocoder(sites_graph_path='./test_sites/',encoded_graph_path='./test_
 				for i in range(0,number_of_different_element):
 					mse_t = sess.run(mse_loss2,feed_dict={x_vector:test_inputs_batch[:,:,:,i].reshape(batch_size,64,64,64,1)})#.reshape(batch_size,64,64,64,1)})
 					mse_test += mse_t
-			print (epoch,' ',mse_tr/len(batch_name_list)/number_of_different_element,' ',mse_test/len(test_batch_name_list)/number_of_different_element)
+			print (epoch, '/', (n_ae_epochs - 1),' ',mse_tr/len(batch_name_list)/number_of_different_element,' ',mse_test/len(test_batch_name_list)/number_of_different_element)
 			if min_mse_test > mse_test/len(test_batch_name_list)/number_of_different_element and mse_test/len(test_batch_name_list)/number_of_different_element<5e-5:
 				min_mse_test=mse_test/len(test_batch_name_list)/number_of_different_element
 				saver.save(sess, save_path = model_path + 'sites.ckpt')
