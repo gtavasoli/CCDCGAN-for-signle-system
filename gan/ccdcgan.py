@@ -10,6 +10,8 @@ from keras.optimizers import Adam
 import matplotlib.pyplot as plt
 
 import sys
+import h5py
+from keras.engine.saving import load_weights_from_hdf5_group
 
 import numpy as np
 import os
@@ -152,7 +154,7 @@ class CCDCGAN():
 
     def rebuild_constrain(self):
         model=self.build_constrain()
-        model.load_weights('./formation_energy_reg.h5')
+        model.load_weights('./calculation/model/formation_energy_reg.h5')
         model.summary()
         model.name="constrain"
         return model
@@ -189,5 +191,5 @@ class CCDCGAN():
             if epoch % save_interval == 0:
                 if not os.path.exists(GAN_calculation_folder_path+'step_by_step_GAN_model/'):
                     os.makedirs(GAN_calculation_folder_path+'step_by_step_GAN_model/')
-                self.generator.save(GAN_calculation_folder_path+'step_by_step_GAN_model/generator.h5' % epoch)
-                self.discriminator.save(GAN_calculation_folder_path+'step_by_step_GAN_model/discriminator.h5' % epoch)
+                self.generator.save(GAN_calculation_folder_path + 'step_by_step_GAN_model/generator_{}.h5'.format(epoch))
+                self.discriminator.save(GAN_calculation_folder_path + 'step_by_step_GAN_model/discriminator_{}.h5'.format(epoch))
