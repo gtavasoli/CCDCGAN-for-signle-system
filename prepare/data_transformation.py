@@ -15,6 +15,7 @@ from scipy.ndimage.morphology import generate_binary_structure, binary_erosion
 import math
 from tqdm import tqdm
 import multiprocessing
+from multiprocessing import Pool, cpu_count
 
 num_cores = multiprocessing.cpu_count()
 
@@ -122,30 +123,48 @@ def basis_translate(atoms):
 	atoms_.positions = new_pos
 	return atoms_
 
-def generate_sites_graph(sites_graph_path,atomlisttype,a_list,data_path,data_type):#e.g.: dt.generate_sites_graph(sites_graph_path='./original_lattice_graph/',atomlisttype='specified',a_list=['V','O'],data_path='/home/teng/tensorflow2.0_example/imatgen-master/iMatGen-VO_dataset_generated_strctures/VO_dataset/geometries/',data_type='vasp')
-	print(f"Num Cores: {num_cores}")
-	if not os.path.exists(sites_graph_path):
-		os.makedirs(sites_graph_path)
+def process_file(eachfile, data_path, data_type, sites_graph_path, atomlisttype, a_list, scale, norm, num_cores):
+    """Helper function to process a single file."""
+    if eachfile.endswith(data_type):
+        filename = os.path.join(data_path, eachfile)
+        atoms = get_atoms(filename, data_type)
+        atoms_ = basis_translate(atoms)
+        image, channellist = get_image_all_atoms(atoms_, 64, scale, norm, num_cores, atomlisttype, a_list)
 
-	scale=get_scale(0.26)
-	filename=os.listdir(data_path)#'./TC/chem_info/')
+        savefilename = os.path.join(sites_graph_path, eachfile[:-len(data_type)-1] + '.npy')
+        np.save(savefilename, image)
+        return True  # Return True to indicate successful processing
+    return False  # Skip files that don't match data_type
 
-	total_files = len(filename)
-	progress_bar = tqdm(total=total_files, desc='Processing Files', unit='file')
+def generate_sites_graph(sites_graph_path, atomlisttype, a_list, data_path, data_type):
+    """Generates sites graph using multiprocessing."""
+    num_cores = cpu_count() - 2
+    print(f"Num Cores: {num_cores}")
 
-	for eachfile in filename:
-		if eachfile.endswith(data_type):
-			filename=data_path+eachfile
-			atoms=get_atoms(filename,data_type)
-			atoms_=basis_translate(atoms)
-			image,channellist=get_image_all_atoms(atoms_,64,scale,norm,num_cores,atomlisttype,a_list)
+    if not os.path.exists(sites_graph_path):
+        os.makedirs(sites_graph_path)
 
-			savefilename=sites_graph_path+eachfile[:-len(data_type)-1]+'.npy'
-			np.save(savefilename,image)
+    scale = get_scale(0.26)
+    filenames = os.listdir(data_path)
 
-			progress_bar.update(1)
+    # Initialize progress bar
+    total_files = len(filenames)
+    progress_bar = tqdm(total=total_files, desc='Processing Files', unit='file')
 
-	progress_bar.close()
+    # Use multiprocessing to parallelize file processing
+    with Pool(num_cores) as pool:
+        # Define partial function for multiprocessing
+        results = [
+            pool.apply_async(process_file, args=(file, data_path, data_type, sites_graph_path, atomlisttype, a_list, scale, None, num_cores))
+            for file in filenames
+        ]
+
+        # Update progress bar as results complete
+        for result in results:
+            if result.get():  # Block until result is ready
+                progress_bar.update(1)
+
+    progress_bar.close()
 
 def generate_combined_sites_graph(sites_graph_path,atomlisttype,a_list,data_path,data_type):
 	if not os.path.exists(sites_graph_path):
