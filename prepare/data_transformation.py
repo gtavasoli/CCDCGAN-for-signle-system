@@ -123,6 +123,7 @@ def basis_translate(atoms):
 	return atoms_
 
 def generate_sites_graph(sites_graph_path,atomlisttype,a_list,data_path,data_type):#e.g.: dt.generate_sites_graph(sites_graph_path='./original_lattice_graph/',atomlisttype='specified',a_list=['V','O'],data_path='/home/teng/tensorflow2.0_example/imatgen-master/iMatGen-VO_dataset_generated_strctures/VO_dataset/geometries/',data_type='vasp')
+	print(f"Num Cores: {num_cores}")
 	if not os.path.exists(sites_graph_path):
 		os.makedirs(sites_graph_path)
 
