@@ -1,300 +1,129 @@
 import os
-import sys
-import pickle
-
 import numpy as np
 import tensorflow as tf
 
-import prepare.data_transformation as dt
+# Hyperparameters
+BATCH_SIZE = 1
+Z_SIZE = 25
+LEARNING_RATE = 0.0003
+EPOCHS = 201
+REG_L2 = 0.0e-6
+INPUT_SHAPE = (32, 32, 32, 1)
 
-###################################################################function
-#####activation
-def lrelu(x, leak=0.2):
-    return tf.maximum(x, leak*x)
+# Xavier initializer
+xavier_init = tf.keras.initializers.GlorotUniform()
 
-#####round
+# Define encoder
+def build_encoder():
+    inputs = tf.keras.Input(shape=INPUT_SHAPE)
+    x = tf.keras.layers.Conv3D(64, kernel_size=4, strides=2, padding="same", activation=tf.nn.leaky_relu,
+                               kernel_initializer=xavier_init)(inputs)
+    x = tf.keras.layers.Conv3D(64, kernel_size=4, strides=2, padding="same", activation=tf.nn.leaky_relu,
+                               kernel_initializer=xavier_init)(x)
+    x = tf.keras.layers.Conv3D(64, kernel_size=4, strides=2, padding="same", activation=tf.nn.leaky_relu,
+                               kernel_initializer=xavier_init)(x)
+    outputs = tf.keras.layers.Conv3D(Z_SIZE, kernel_size=4, strides=1, padding="valid", activation=tf.nn.tanh,
+                                     kernel_initializer=xavier_init)(x)
+    return tf.keras.Model(inputs, outputs, name="encoder")
+
+# Define decoder
+def build_decoder():
+    inputs = tf.keras.Input(shape=(1, 1, 1, Z_SIZE))
+    x = tf.keras.layers.Conv3DTranspose(64, kernel_size=4, strides=1, padding="valid", activation=tf.nn.leaky_relu,
+                                        kernel_initializer=xavier_init)(inputs)
+    x = tf.keras.layers.Conv3DTranspose(64, kernel_size=4, strides=2, padding="same", activation=tf.nn.leaky_relu,
+                                        kernel_initializer=xavier_init)(x)
+    x = tf.keras.layers.Conv3DTranspose(64, kernel_size=4, strides=2, padding="same", activation=tf.nn.leaky_relu,
+                                        kernel_initializer=xavier_init)(x)
+    outputs = tf.keras.layers.Conv3DTranspose(1, kernel_size=4, strides=2, padding="same", activation=tf.nn.sigmoid,
+                                              kernel_initializer=xavier_init)(x)
+    return tf.keras.Model(inputs, outputs, name="decoder")
+
+# Threshold function
 def threshold(x, val=0.5):
-    x = tf.clip_by_value(x,0.5,0.5001) - 0.5
-    x = tf.minimum(x * 10000,1) 
+    x = tf.clip_by_value(x, 0.5, 0.5001) - 0.5
+    x = tf.minimum(x * 10000, 1)
     return x
 
-#####neuron networks
-def decoder(z, batch_size=1, phase_train=True, reuse=False):
+# Load and preprocess data
+def load_data(path, batch_size=BATCH_SIZE):
+    def process_file(filename):
+        data = np.load(filename.numpy())
+        return tf.convert_to_tensor(data.reshape(INPUT_SHAPE), dtype=tf.float32)
 
-	strides = [1,2,2,2,1]
-	with tf.variable_scope("gen",reuse=reuse):
-		z = tf.reshape(z,(batch_size,1,1,1,z_size))
-		g_1 = tf.nn.conv3d_transpose(z, weights['wg1'], (batch_size,4,4,4,64), strides=[1,1,1,1,1], padding="VALID")
-		g_1 = lrelu(g_1)
+    dataset = tf.data.Dataset.list_files(os.path.join(path, "*.npy"))
+    dataset = dataset.map(lambda x: tf.py_function(func=process_file, inp=[x], Tout=tf.float32))
+    dataset = dataset.batch(batch_size).shuffle(buffer_size=100)
+    return dataset
 
-		g_2 = tf.nn.conv3d_transpose(g_1, weights['wg2'], (batch_size,8,8,8,64), strides=strides, padding="SAME")
-		g_2 = lrelu(g_2)
-
-		g_3 = tf.nn.conv3d_transpose(g_2, weights['wg3'], (batch_size,16,16,16,64), strides=strides, padding="SAME")
-		g_3 = lrelu(g_3)
-
-		g_4 = tf.nn.conv3d_transpose(g_3, weights['wg4'], (batch_size,32,32,32,1), strides=[1,2,2,2,1], padding="SAME")
-		g_4 = tf.nn.sigmoid(g_4)
-
-		return g_4
-
-def encoder(inputs, phase_train=True, reuse=False):
-	leak_value = 0.2
-	strides = [1,2,2,2,1]
-	with tf.variable_scope("enc",reuse=reuse):
-		d_1 = tf.nn.conv3d(inputs, weights['wae1'], strides=strides, padding="SAME")
-		d_1 = lrelu(d_1, leak_value)
-
-		d_2 = tf.nn.conv3d(d_1, weights['wae2'], strides=strides, padding="SAME") 
-		d_2 = lrelu(d_2, leak_value)
-        
-		d_3 = tf.nn.conv3d(d_2, weights['wae3'], strides=strides, padding="SAME")  
-		d_3 = lrelu(d_3, leak_value) 
-
-		d_4 = tf.nn.conv3d(d_3, weights['wae4'], strides=[1,1,1,1,1], padding="VALID")     
-		d_4 = tf.nn.tanh(d_4)
-
-		return d_4
-#####weight
-weights = {}
-def initialiseWeights():
-	global weights
-	xavier_init = tf.contrib.layers.xavier_initializer()
-
-	weights['wg1'] = tf.get_variable("wg1", shape=[4, 4, 4, 64, z_size], initializer=xavier_init)
-	weights['wg2'] = tf.get_variable("wg2", shape=[4, 4, 4, 64, 64], initializer=xavier_init)
-	weights['wg3'] = tf.get_variable("wg3", shape=[4, 4, 4, 64, 64], initializer=xavier_init)
-	weights['wg4'] = tf.get_variable("wg4", shape=[4, 4, 4, 1, 64], initializer=xavier_init)
-
-	weights['wae1'] = tf.get_variable("wae1", shape=[4, 4, 4, 1, 64], initializer=xavier_init)
-	weights['wae2'] = tf.get_variable("wae2", shape=[4, 4, 4, 64, 64], initializer=xavier_init)
-	weights['wae3'] = tf.get_variable("wae3", shape=[4, 4, 4, 64, 64], initializer=xavier_init)
-	weights['wae4'] = tf.get_variable("wae4", shape=[4, 4, 4, 64, z_size], initializer=xavier_init)    
-
-	return weights
-
-###########################################################################training
-#####parameters
-batch_size = 1
-z_size     = 25
-reg_l2     = 0.0e-6
-ae_lr      = 0.0003
-n_ae_epochs= 201
-
-import os
-import numpy as np
-import tensorflow as tf
-from tensorflow.keras import Model, layers, optimizers
-
-def lattice_autocoder(lattice_graph_path='./test_lattice/', 
-                      encoded_graph_path='./test_encoded_lattice/', 
-                      model_path='./test_model/'):
-    # Ensure paths exist
+# Train the autoencoder
+def train_autoencoder(lattice_graph_path, encoded_graph_path, model_path):
     os.makedirs(encoded_graph_path, exist_ok=True)
     os.makedirs(model_path, exist_ok=True)
 
-    ##### Helper Functions #####
-    def initialiseWeights():
-        # Implement weight initialization logic here
-        pass
+    encoder = build_encoder()
+    decoder = build_decoder()
 
-    class Autoencoder(Model):
-        def __init__(self):
-            super(Autoencoder, self).__init__()
-            # Define encoder
-            self.encoder = tf.keras.Sequential([
-                layers.InputLayer(input_shape=(32, 32, 32, 1)),
-                layers.Conv3D(16, (3, 3, 3), activation='relu', padding='same'),
-                layers.MaxPooling3D((2, 2, 2), padding='same'),
-                layers.Conv3D(8, (3, 3, 3), activation='relu', padding='same'),
-                layers.MaxPooling3D((2, 2, 2), padding='same'),
-                layers.Conv3D(4, (3, 3, 3), activation='relu', padding='same'),
-            ])
-            # Define decoder
-            self.decoder = tf.keras.Sequential([
-                layers.Conv3DTranspose(4, (3, 3, 3), activation='relu', padding='same'),
-                layers.UpSampling3D((2, 2, 2)),
-                layers.Conv3DTranspose(8, (3, 3, 3), activation='relu', padding='same'),
-                layers.UpSampling3D((2, 2, 2)),
-                layers.Conv3DTranspose(1, (3, 3, 3), activation='sigmoid', padding='same'),
-            ])
-        
-        def call(self, x):
-            encoded = self.encoder(x)
-            decoded = self.decoder(encoded)
-            return encoded, decoded
+    inputs = tf.keras.Input(shape=INPUT_SHAPE)
+    encoded = encoder(inputs)
+    decoded = decoder(encoded)
+    autoencoder = tf.keras.Model(inputs, decoded, name="autoencoder")
 
-    # Initialize model
-    autoencoder = Autoencoder()
+    optimizer = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE)
+    mse_loss = tf.keras.losses.MeanSquaredError()
 
-    # Optimizer and Loss Function
-    optimizer = optimizers.Adam(learning_rate=1e-3)
-    mse_loss_fn = tf.keras.losses.MeanSquaredError()
+    train_dataset = load_data(lattice_graph_path)
 
-    @tf.function
-    def train_step(inputs_batch):
-        with tf.GradientTape() as tape:
-            _, decoded = autoencoder(inputs_batch, training=True)
-            loss = mse_loss_fn(inputs_batch, decoded)
-        gradients = tape.gradient(loss, autoencoder.trainable_variables)
-        optimizer.apply_gradients(zip(gradients, autoencoder.trainable_variables))
-        return loss
-
-    # Load and preprocess data
-    def load_batch(file_list, path):
-        return [np.load(os.path.join(path, f)).reshape(-1, 32, 32, 32, 1) for f in file_list]
-
-    # Training loop
-    # train_files, test_files = dt.train_test_split(path=lattice_graph_path, split_ratio=0.1)
-    split_result = dt.train_test_split(path=lattice_graph_path, split_ratio=0.1)
-    train_files = split_result[1]
-    test_files = split_result[2]
-    
-    min_mse_test = float('inf')
-
-    for epoch in range(100):  # Example number of epochs
-        # Train batches
-        train_batches = dt.get_batch_name_list(train_files, batch_size=311)
+    print("Starting training...")
+    for epoch in range(EPOCHS):
         train_loss = 0
-        for batch in train_batches:
-            inputs_batch = np.load(lattice_graph_path + batch + '.npy').reshape(-1, 32, 32, 32, 1)
-            train_loss += train_step(inputs_batch)
-        train_loss /= len(train_batches)
+        for step, x_batch in enumerate(train_dataset):
+            with tf.GradientTape() as tape:
+                encoded = encoder(x_batch)
+                decoded = decoder(encoded)
+                decoded = threshold(decoded)
+                loss = mse_loss(x_batch, decoded)
+                train_loss += loss.numpy()
 
-        # Test batches
-        test_batches = dt.get_batch_name_list(test_files, batch_size=1000)
-        test_loss = 0
-        for batch in test_batches:
-            inputs_batch = np.load(lattice_graph_path + batch + '.npy').reshape(-1, 32, 32, 32, 1)
-            _, decoded = autoencoder(inputs_batch, training=False)
-            test_loss += mse_loss_fn(inputs_batch, decoded).numpy()
-        test_loss /= len(test_batches)
+            gradients = tape.gradient(loss, autoencoder.trainable_variables)
+            optimizer.apply_gradients(zip(gradients, autoencoder.trainable_variables))
 
-        print(f"Epoch {epoch}, Train Loss: {train_loss.numpy()}, Test Loss: {test_loss}")
+            if step % 10 == 0:
+                print(f"Epoch {epoch+1}, Step {step+1}: Batch Loss = {loss.numpy():.6f}")
 
-        # Save the model if test loss improves
-        if test_loss < min_mse_test and test_loss < 5e-5:
-            min_mse_test = test_loss
-            autoencoder.save_weights(os.path.join(model_path, 'lattice_autoencoder'))
-            for file in train_files + test_files:
-                inputs_batch = np.load(lattice_graph_path + file + '.npy').reshape(-1, 32, 32, 32, 1)
-                encoded, _ = autoencoder(inputs_batch, training=False)
-                np.save(os.path.join(encoded_graph_path, file + '.npy'), encoded.numpy())
+        epoch_loss = train_loss / len(list(train_dataset))
+        print(f"Epoch {epoch+1}/{EPOCHS}: Average Loss = {epoch_loss:.6f}")
 
-    print("Training completed.")
+        # Save the model
+        if (epoch + 1) % 10 == 0:
+            autoencoder.save_weights(os.path.join(model_path, "lattice_autoencoder.h5"))
+            print(f"Model saved at epoch {epoch+1}.")
 
-# def lattice_autocoder(lattice_graph_path='./test_lattice/',encoded_graph_path='./test_encoded_lattice/',model_path='./test_model/'):#e.g.: la.lattice_autocoder(lattice_graph_path='./original_lattice_graph/',encoded_graph_path='./original_encoded_lattice/',model_path='./model/')
-# 	# tf.reset_default_graph()
-# 	if not os.path.exists(encoded_graph_path):
-# 		os.makedirs(encoded_graph_path)
-# 	if not os.path.exists(model_path):
-# 		os.makedirs(model_path)
+    print("Training completed. Starting encoding...")
+    for filename in os.listdir(lattice_graph_path):
+        if filename.endswith(".npy"):
+            lattice = np.load(os.path.join(lattice_graph_path, filename))
+            lattice = lattice.reshape((1,) + INPUT_SHAPE)
+            encoded_lattice = encoder.predict(lattice).reshape(Z_SIZE)
+            np.save(os.path.join(encoded_graph_path, filename), encoded_lattice)
+            print(f"Encoded lattice saved: {filename}")
 
-# 	#####train_function
-# 	weights = initialiseWeights()
-# 	x_vector = tf.placeholder(shape=[batch_size,32,32,32,1],dtype=tf.float32)
-# 	z_vector = tf.placeholder(shape=[batch_size,1,1,1,z_size],dtype=tf.float32) 
+# Restore and decode lattices
+def lattice_restorer(encoded_graph_path, decoded_graph_path, model_path):
+    os.makedirs(decoded_graph_path, exist_ok=True)
 
-# 	# Weights for autoencoder pretraining
-# 	with tf.variable_scope('encoders') as scope1:
-# 		encoded = encoder(x_vector, phase_train=True, reuse=False)
-# 		scope1.reuse_variables()
-# 		encoded2 = encoder(x_vector, phase_train=False, reuse=True)
+    encoder = build_encoder()
+    decoder = build_decoder()
 
-# 	with tf.variable_scope('gen_from_dec') as scope2:
-# 		decoded = decoder(encoded, phase_train=True, reuse=False)
-# 		scope2.reuse_variables()
-# 		decoded_test = decoder(encoded2,phase_train=False, reuse=True)
+    print("Restoring models...")
+    encoder.load_weights(os.path.join(model_path, "lattice_autoencoder.h5"))
+    decoder.load_weights(os.path.join(model_path, "lattice_autoencoder.h5"))
+    print("Models restored successfully.")
 
-# 	# Round decoder output
-# 	decoded = threshold(decoded)
-# 	decoded_test = threshold(decoded_test)
-# 	# Compute MSE Loss and L2 Loss
-# 	mse_loss = tf.reduce_mean(tf.pow(x_vector - decoded, 2))
-# 	mse_loss2 = tf.reduce_mean(tf.pow(x_vector - decoded_test, 2))
-# 	para_ae = [var for var in tf.trainable_variables() if any(x in var.name for x in ['wae','wg'])]
-# 	l2_loss = tf.add_n([tf.nn.l2_loss(v) for v in para_ae])
-# 	ae_loss = mse_loss + reg_l2 * l2_loss
-# 	optimizer_ae = tf.train.AdamOptimizer(learning_rate=ae_lr, name="Adam_AE").minimize(ae_loss,var_list=para_ae)
-
-# 	saver = tf.train.Saver() 
-
-# 	with tf.Session() as sess:  
-# 		# sess.run(tf.global_variables_initializer())    
-# 		test_size,test_name_list,train_name_list=dt.train_test_split(path=lattice_graph_path,split_ratio=0.1)
-# 		min_mse_test=1
-
-# 		for epoch in range(n_ae_epochs):
-# 			batch_name_list=dt.get_batch_name_list(train_name_list,batch_size=311)
-# 			mse_tr = 0; mse_test = 0;
-# 			for interation in range(len(batch_name_list)):
-# 				inputs_batch=np.load(lattice_graph_path+batch_name_list[interation]+'.npy').reshape(batch_size,32,32,32,1)
-# 				mse_l, _ = sess.run([mse_loss, optimizer_ae],feed_dict={x_vector:inputs_batch})#,o_vector:object_batch})
-# 				mse_tr += mse_l
-			
-# 			test_batch_name_list=dt.get_batch_name_list(test_name_list,batch_size=1000)
-# 			for interation in range(len(test_batch_name_list)):
-# 				test_inputs_batch=np.load(lattice_graph_path+test_batch_name_list[interation]+'.npy').reshape(batch_size,32,32,32,1)
-# 				mse_t = sess.run(mse_loss2,feed_dict={x_vector:test_inputs_batch})#,o_vector:test_object_batch})
-# 				mse_test += mse_t
-# 			print (epoch, '/', (n_ae_epochs - 1), ' ',mse_tr/len(batch_name_list),' ',mse_test/len(test_batch_name_list))
-
-# 			if min_mse_test > mse_test/len(test_batch_name_list) and mse_test/len(test_batch_name_list)<5e-5:
-# 				min_mse_test=mse_test/len(test_batch_name_list)
-# 				saver.save(sess, save_path = model_path + 'lattice.ckpt')
-# 				total_name_list=test_name_list+train_name_list
-# 				for name in total_name_list:
-# 					savefilename=encoded_graph_path+name+'.npy'
-# 					encoded_lattice=np.zeros(200)
-# 					encoded_lattice[0:25]=encoded2.eval(feed_dict={x_vector:np.load(lattice_graph_path+name+'.npy').reshape(batch_size,32,32,32,1)}).reshape(25)
-# 					np.save(savefilename,encoded_lattice)
-
-###########################################################################training
-
-def lattice_restorer(generated_2d_path='./generated_2d_graph/',genenrated_decoded_path='./generated_decoded_lattice/',model_path='./test_model/'):
-	tf.reset_default_graph()
-	if not os.path.exists(genenrated_decoded_path):
-		os.makedirs(genenrated_decoded_path)
-	#####train_function
-	weights = initialiseWeights()
-	x_vector = tf.placeholder(shape=[batch_size,32,32,32,1],dtype=tf.float32)
-	z_vector = tf.placeholder(shape=[batch_size,1,1,1,z_size],dtype=tf.float32) 
-
-	# Weights for autoencoder pretraining
-	with tf.variable_scope('encoders') as scope1:
-		encoded = encoder(x_vector, phase_train=True, reuse=False)
-		scope1.reuse_variables()
-		encoded2 = encoder(x_vector, phase_train=False, reuse=True)
-
-	with tf.variable_scope('gen_from_dec') as scope2:
-		decoded = decoder(encoded, phase_train=True, reuse=False)
-		scope2.reuse_variables()
-		decoded_test = decoder(encoded2,phase_train=False, reuse=True)
-
-	# Round decoder output
-	decoded = threshold(decoded)
-	decoded_test = threshold(decoded_test)
-	# Compute MSE Loss and L2 Loss
-	mse_loss = tf.reduce_mean(tf.pow(x_vector - decoded, 2))
-	mse_loss2 = tf.reduce_mean(tf.pow(x_vector - decoded_test, 2))
-	para_ae = [var for var in tf.trainable_variables() if any(x in var.name for x in ['wae','wg'])]
-	l2_loss = tf.add_n([tf.nn.l2_loss(v) for v in para_ae])
-	ae_loss = mse_loss + reg_l2 * l2_loss
-	optimizer_ae = tf.train.AdamOptimizer(learning_rate=ae_lr, name="Adam_AE").minimize(ae_loss,var_list=para_ae)
-
-	restore_saver = tf.train.Saver() 
-
-	with tf.Session() as sess:  
-		sess.run(tf.global_variables_initializer())    
-		test_size,test_name_list,train_name_list=dt.train_test_split(path=generated_2d_path,split_ratio=0.1)
-
-		restore_saver.restore(sess,model_path+'lattice.ckpt')
-
-		total_name_list=test_name_list+train_name_list
-		for name in total_name_list:
-			savefilename=genenrated_decoded_path+name+'.npy'
-			ge=np.load(generated_2d_path+name+'.npy')
-			ge=ge[0,0:25].reshape(batch_size,1,1,1,z_size)
-			decoded_lattice=decoded_test.eval(feed_dict={encoded2:ge}).reshape(32,32,32)
-			np.save(savefilename,decoded_lattice)
-		
+    print("Starting decoding...")
+    for filename in os.listdir(encoded_graph_path):
+        if filename.endswith(".npy"):
+            encoded = np.load(os.path.join(encoded_graph_path, filename)).reshape((1, 1, 1, 1, Z_SIZE))
+            decoded = decoder.predict(encoded).reshape((32, 32, 32))
+            np.save(os.path.join(decoded_graph_path, filename), decoded)
+            print(f"Decoded lattice saved: {filename}")
