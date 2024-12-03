@@ -1,6 +1,8 @@
 import os
 import numpy as np
 import tensorflow as tf
+from tqdm import tqdm  # Add this to the imports
+import time
 
 # Hyperparameters
 BATCH_SIZE = 1
@@ -76,23 +78,27 @@ def train_autoencoder(lattice_graph_path, encoded_graph_path, model_path):
 
     print("Starting training...")
     for epoch in range(EPOCHS):
+        start_time = time.time()  # Start timing the epoch
         train_loss = 0
-        for step, x_batch in enumerate(train_dataset):
-            with tf.GradientTape() as tape:
-                encoded = encoder(x_batch)
-                decoded = decoder(encoded)
-                decoded = threshold(decoded)
-                loss = mse_loss(x_batch, decoded)
-                train_loss += loss.numpy()
 
-            gradients = tape.gradient(loss, autoencoder.trainable_variables)
-            optimizer.apply_gradients(zip(gradients, autoencoder.trainable_variables))
+        with tqdm(total=len(list(train_dataset)), desc=f"Epoch {epoch+1}/{EPOCHS}", unit="batch") as pbar:
+            for step, x_batch in enumerate(train_dataset):
+                with tf.GradientTape() as tape:
+                    encoded = encoder(x_batch)
+                    decoded = decoder(encoded)
+                    decoded = threshold(decoded)
+                    loss = mse_loss(x_batch, decoded)
+                    train_loss += loss.numpy()
 
-            if step % 10 == 0:
-                print(f"Epoch {epoch+1}, Step {step+1}: Batch Loss = {loss.numpy():.6f}")
+                gradients = tape.gradient(loss, autoencoder.trainable_variables)
+                optimizer.apply_gradients(zip(gradients, autoencoder.trainable_variables))
+
+                pbar.update(1)  # Update the progress bar
+                pbar.set_postfix({"Batch Loss": f"{loss.numpy():.6f}"})  # Update the postfix with loss
 
         epoch_loss = train_loss / len(list(train_dataset))
-        print(f"Epoch {epoch+1}/{EPOCHS}: Average Loss = {epoch_loss:.6f}")
+        elapsed_time = time.time() - start_time  # Calculate epoch duration
+        print(f"Epoch {epoch+1}/{EPOCHS}: Average Loss = {epoch_loss:.6f}, Time Taken = {elapsed_time:.2f}s")
 
         # Save the model
         if (epoch + 1) % 10 == 0:
