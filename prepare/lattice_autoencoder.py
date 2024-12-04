@@ -112,12 +112,11 @@ def train_autoencoder(lattice_graph_path, encoded_graph_path, model_path):
         for filename in lattice_files:
             lattice = np.load(os.path.join(lattice_graph_path, filename))
             lattice = lattice.reshape((1,) + INPUT_SHAPE)
-            encoded_lattice = encoder.predict(lattice).reshape(Z_SIZE)
+            encoded_lattice = encoder.predict(lattice, verbose=0).reshape(Z_SIZE)
             np.save(os.path.join(encoded_graph_path, filename), encoded_lattice)
             
-            # Update progress bar with the current file name
-            pbar.set_description(f"Encoding: {filename}")
-            pbar.update(1)
+            pbar.set_postfix({"File": filename}) 
+            pbar.update(1) 
 
 # Restore and decode lattices
 def lattice_restorer(encoded_graph_path, decoded_graph_path, model_path):
