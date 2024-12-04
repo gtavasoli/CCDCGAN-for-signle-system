@@ -126,14 +126,15 @@ def lattice_restorer(encoded_graph_path, decoded_graph_path, model_path):
     decoder = build_decoder()
 
     print("Restoring models...")
-    encoder.load_weights(os.path.join(model_path, "lattice_autoencoder.h5"))
-    decoder.load_weights(os.path.join(model_path, "lattice_autoencoder.h5"))
+    encoder.load_weights(os.path.join(model_path, "lattice_autoencoder.weights.h5"))
+    decoder.load_weights(os.path.join(model_path, "lattice_autoencoder.weights.h5"))
     print("Models restored successfully.")
 
-    print("Starting decoding...")
-    for filename in os.listdir(encoded_graph_path):
-        if filename.endswith(".npy"):
-            encoded = np.load(os.path.join(encoded_graph_path, filename)).reshape((1, 1, 1, 1, Z_SIZE))
-            decoded = decoder.predict(encoded).reshape((32, 32, 32))
-            np.save(os.path.join(decoded_graph_path, filename), decoded)
-            print(f"Decoded lattice saved: {filename}")
+    print("Starting Decoding...")
+    with tqdm(total=len(os.listdir(encoded_graph_path)), desc="Decoding", unit="file") as pbar:
+        for filename in os.listdir(encoded_graph_path):
+            if filename.endswith(".npy"):
+                encoded_lattice = np.load(os.path.join(encoded_graph_path, filename)).reshape(BATCH_SIZE, 1, 1, 1, Z_SIZE)
+                decoded_lattice = decoder(encoded_lattice, training=False).numpy().reshape(32, 32, 32)
+                np.save(os.path.join(decoded_graph_path, filename), decoded_lattice)
+                pbar.update(1)
