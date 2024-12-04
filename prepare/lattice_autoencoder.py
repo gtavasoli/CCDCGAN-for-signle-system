@@ -1,13 +1,13 @@
 import os
 import numpy as np
 import tensorflow as tf
-from tqdm import tqdm  # Add this to the imports
+from tqdm import tqdm 
 import time
 
 # Hyperparameters
-BATCH_SIZE = 1
+BATCH_SIZE = 16
 Z_SIZE = 25
-LEARNING_RATE = 0.0003
+LEARNING_RATE = 0.0003 * (BATCH_SIZE / 4)
 EPOCHS = 201
 REG_L2 = 0.0e-6
 INPUT_SHAPE = (32, 32, 32, 1)
@@ -102,17 +102,22 @@ def train_autoencoder(lattice_graph_path, encoded_graph_path, model_path):
 
         # Save the model
         if (epoch + 1) % 10 == 0:
-            autoencoder.save_weights(os.path.join(model_path, "lattice_autoencoder.h5"))
+            autoencoder.save_weights(os.path.join(model_path, "lattice_autoencoder.weights.h5"))
             print(f"Model saved at epoch {epoch+1}.")
 
     print("Training completed. Starting encoding...")
-    for filename in os.listdir(lattice_graph_path):
-        if filename.endswith(".npy"):
+
+    lattice_files = [f for f in os.listdir(lattice_graph_path) if f.endswith(".npy")]
+    with tqdm(total=len(lattice_files), desc="Encoding lattices") as pbar:
+        for filename in lattice_files:
             lattice = np.load(os.path.join(lattice_graph_path, filename))
             lattice = lattice.reshape((1,) + INPUT_SHAPE)
             encoded_lattice = encoder.predict(lattice).reshape(Z_SIZE)
             np.save(os.path.join(encoded_graph_path, filename), encoded_lattice)
-            print(f"Encoded lattice saved: {filename}")
+            
+            # Update progress bar with the current file name
+            pbar.set_description(f"Encoding: {filename}")
+            pbar.update(1)
 
 # Restore and decode lattices
 def lattice_restorer(encoded_graph_path, decoded_graph_path, model_path):
