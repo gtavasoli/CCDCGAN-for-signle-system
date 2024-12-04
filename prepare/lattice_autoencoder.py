@@ -6,9 +6,9 @@ import prepare.data_transformation as dt
 import time
 
 # Hyperparameters
-BATCH_SIZE = 1
+BATCH_SIZE = 16
 Z_SIZE = 25
-LEARNING_RATE = 0.0003
+LEARNING_RATE = 0.0003 * (BATCH_SIZE / 1)
 EPOCHS = 51 #Original code 201
 REG_L2 = 0.0e-6
 INPUT_SHAPE = (32, 32, 32, 1)
