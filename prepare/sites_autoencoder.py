@@ -10,15 +10,15 @@ class Autoencoder(tf.keras.Model):
         self.encoder = tf.keras.Sequential([
             tf.keras.layers.InputLayer(input_shape=(64, 64, 64, 2)),  # Adjust input to 2 channels
             tf.keras.layers.Conv3D(64, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
-            tf.keras.layers.Conv3D(64, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
-            tf.keras.layers.Conv3D(64, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
-            tf.keras.layers.Conv3D(64, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
+            tf.keras.layers.Conv3D(128, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
+            tf.keras.layers.Conv3D(256, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
+            tf.keras.layers.Conv3D(512, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
             tf.keras.layers.Conv3D(z_size, kernel_size=(4, 4, 4), strides=(1, 1, 1), padding="valid", activation="tanh")
         ])
         self.decoder = tf.keras.Sequential([
-            tf.keras.layers.Conv3DTranspose(64, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
-            tf.keras.layers.Conv3DTranspose(64, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
-            tf.keras.layers.Conv3DTranspose(64, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
+            tf.keras.layers.Conv3DTranspose(512, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
+            tf.keras.layers.Conv3DTranspose(256, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
+            tf.keras.layers.Conv3DTranspose(128, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
             tf.keras.layers.Conv3DTranspose(64, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
             tf.keras.layers.Conv3DTranspose(2, kernel_size=(4, 4, 4), strides=(1, 1, 1), padding="same", activation="sigmoid")  # Output matches input channels
         ])
@@ -27,7 +27,6 @@ class Autoencoder(tf.keras.Model):
         encoded = self.encoder(inputs)
         decoded = self.decoder(encoded)
         return encoded, decoded
-
 
 def load_data(path, batch_size):
     data_files = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.npy')]
