@@ -13,10 +13,10 @@ class Autoencoder(tf.keras.Model):
             tf.keras.layers.Conv3D(128, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"), # (16, 16, 16, 128)
             tf.keras.layers.Conv3D(256, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"), # (8, 8, 8, 256)
             tf.keras.layers.Conv3D(512, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"), # (4, 4, 4, 512)
-            tf.keras.layers.Conv3D(z_size, kernel_size=(4, 4, 4), strides=(1, 1, 1), padding="valid", activation="tanh")  # (1, 1, 1, z_size)
+            tf.keras.layers.Conv3D(z_size, kernel_size=(4, 4, 4), strides=(4, 4, 4), padding="valid", activation="tanh")  # (1, 1, 1, z_size)
         ])
         self.decoder = tf.keras.Sequential([
-            tf.keras.layers.Conv3DTranspose(512, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"), # (4, 4, 4, 512)
+            tf.keras.layers.Conv3DTranspose(512, kernel_size=(4, 4, 4), strides=(4, 4, 4), padding="valid", activation="relu"), # (4, 4, 4, 512)
             tf.keras.layers.Conv3DTranspose(256, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"), # (8, 8, 8, 256)
             tf.keras.layers.Conv3DTranspose(128, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"), # (16, 16, 16, 128)
             tf.keras.layers.Conv3DTranspose(64, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),  # (32, 32, 32, 64)
