@@ -8,7 +8,7 @@ class Autoencoder(tf.keras.Model):
     def __init__(self, z_size=200):
         super(Autoencoder, self).__init__()
         self.encoder = tf.keras.Sequential([
-            tf.keras.layers.InputLayer(input_shape=(64, 64, 64, 2)),  # Adjust input to 2 channels
+            tf.keras.layers.InputLayer(input_shape=(64, 64, 64, 2)),  # 2 input channels
             tf.keras.layers.Conv3D(64, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
             tf.keras.layers.Conv3D(128, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
             tf.keras.layers.Conv3D(256, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
@@ -20,7 +20,7 @@ class Autoencoder(tf.keras.Model):
             tf.keras.layers.Conv3DTranspose(256, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
             tf.keras.layers.Conv3DTranspose(128, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
             tf.keras.layers.Conv3DTranspose(64, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
-            tf.keras.layers.Conv3DTranspose(2, kernel_size=(4, 4, 4), strides=(1, 1, 1), padding="same", activation="sigmoid")  # Output matches input channels
+            tf.keras.layers.Conv3DTranspose(2, kernel_size=(3, 3, 3), strides=(1, 1, 1), padding="same", activation="sigmoid")  # Match input dimensions
         ])
 
     def call(self, inputs):
