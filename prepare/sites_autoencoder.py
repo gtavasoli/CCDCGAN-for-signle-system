@@ -75,7 +75,7 @@ def train_autoencoder(sites_graph_path, encoded_graph_path, model_path, batch_si
         print(f"Epoch {epoch + 1}, Validation Loss: {test_loss / len(test_data):.6f}")
 
     # Save model
-    autoencoder.save(os.path.join(model_path, "autoencoder_model"))
+    autoencoder.save(os.path.join(model_path, "autoencoder_model.keras"))
 
 
 def encode_data(autoencoder, data_files, encoded_graph_path):
