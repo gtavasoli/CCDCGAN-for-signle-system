@@ -8,19 +8,19 @@ class Autoencoder(tf.keras.Model):
     def __init__(self, z_size=200):
         super(Autoencoder, self).__init__()
         self.encoder = tf.keras.Sequential([
-            tf.keras.layers.InputLayer(input_shape=(64, 64, 64, 2)),  # 2 input channels
-            tf.keras.layers.Conv3D(64, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
-            tf.keras.layers.Conv3D(128, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
-            tf.keras.layers.Conv3D(256, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
-            tf.keras.layers.Conv3D(512, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
-            tf.keras.layers.Conv3D(z_size, kernel_size=(4, 4, 4), strides=(1, 1, 1), padding="valid", activation="tanh")
+            tf.keras.layers.InputLayer(input_shape=(64, 64, 64, 2)),
+            tf.keras.layers.Conv3D(64, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),  # (32, 32, 32, 64)
+            tf.keras.layers.Conv3D(128, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"), # (16, 16, 16, 128)
+            tf.keras.layers.Conv3D(256, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"), # (8, 8, 8, 256)
+            tf.keras.layers.Conv3D(512, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"), # (4, 4, 4, 512)
+            tf.keras.layers.Conv3D(z_size, kernel_size=(4, 4, 4), strides=(1, 1, 1), padding="valid", activation="tanh")  # (1, 1, 1, z_size)
         ])
         self.decoder = tf.keras.Sequential([
-            tf.keras.layers.Conv3DTranspose(512, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
-            tf.keras.layers.Conv3DTranspose(256, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
-            tf.keras.layers.Conv3DTranspose(128, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
-            tf.keras.layers.Conv3DTranspose(64, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),
-            tf.keras.layers.Conv3DTranspose(2, kernel_size=(3, 3, 3), strides=(1, 1, 1), padding="same", activation="sigmoid")  # Match input dimensions
+            tf.keras.layers.Conv3DTranspose(512, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"), # (4, 4, 4, 512)
+            tf.keras.layers.Conv3DTranspose(256, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"), # (8, 8, 8, 256)
+            tf.keras.layers.Conv3DTranspose(128, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"), # (16, 16, 16, 128)
+            tf.keras.layers.Conv3DTranspose(64, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="relu"),  # (32, 32, 32, 64)
+            tf.keras.layers.Conv3DTranspose(2, kernel_size=(4, 4, 4), strides=(2, 2, 2), padding="same", activation="sigmoid")  # (64, 64, 64, 2)
         ])
 
     def call(self, inputs):
