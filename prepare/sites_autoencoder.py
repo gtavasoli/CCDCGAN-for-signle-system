@@ -3,6 +3,7 @@ import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
+number_of_different_element=2
 
 class Autoencoder(tf.keras.Model):
     def __init__(self, z_size=200):
@@ -69,7 +70,12 @@ def train_autoencoder(sites_graph_path, encoded_graph_path, model_path, batch_si
             # Save encoded sites for the batch
             for i, file_path in enumerate(data_files[:len(batch)]):
                 encoded_path = os.path.join(encoded_graph_path, os.path.basename(file_path))
-                np.save(encoded_path, encoded.numpy()[i])
+                
+                padded_encoded_data = np.zeros((200, number_of_different_element), dtype=np.float32)
+                for j in range(number_of_different_element):
+                    padded_encoded_data[:encoded.shape[-1], j] = encoded.numpy()[i, :, j]
+
+                np.save(encoded_path, padded_encoded_data)
 
         print(f"Epoch {epoch + 1}, Training Loss: {train_loss / len(train_data):.6f}")
 
@@ -92,6 +98,11 @@ def encode_data(autoencoder, data_files, encoded_graph_path):
     for data_file in tqdm(data_files, desc="Encoding Data"):
         data = np.load(data_file).reshape((1, 64, 64, 64, 2))
         encoded, _ = autoencoder(data)
+
+        padded_encoded_data = np.zeros((200, number_of_different_element), dtype=np.float32)
+        for j in range(number_of_different_element):
+            padded_encoded_data[:encoded.shape[-1], j] = encoded.numpy().flatten()[j]
+
         encoded_file = os.path.join(encoded_graph_path, os.path.basename(data_file))
-        np.save(encoded_file, encoded.numpy())
+        np.save(encoded_file, padded_encoded_data)
 
