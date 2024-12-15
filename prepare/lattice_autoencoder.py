@@ -120,7 +120,7 @@ def train_autoencoder(lattice_graph_path, encoded_graph_path, model_path):
             padded_lattice = np.zeros(200, dtype=np.float32)
             padded_lattice[:Z_SIZE] = encoded_lattice
             
-            np.save(os.path.join(encoded_graph_path, filename), encoded_lattice)
+            np.save(os.path.join(encoded_graph_path, filename), padded_lattice)
             
             pbar.set_postfix({"File": filename}) 
             pbar.update(1)
