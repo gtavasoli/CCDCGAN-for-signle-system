@@ -73,7 +73,7 @@ def train_autoencoder(sites_graph_path, encoded_graph_path, model_path, batch_si
                 
                 padded_encoded_data = np.zeros((200, number_of_different_element), dtype=np.float32)
                 for j in range(number_of_different_element):
-                    padded_encoded_data[:encoded.shape[-1], j] = encoded.numpy()[i, :, j]
+                    padded_encoded_data[:encoded.shape[-1], j] = encoded.numpy()[i, :]
 
                 np.save(encoded_path, padded_encoded_data)
 
