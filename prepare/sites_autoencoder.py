@@ -47,6 +47,10 @@ def train_autoencoder(sites_graph_path, encoded_graph_path, model_path, batch_si
     autoencoder = Autoencoder(z_size=z_size)
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 
+    # Create checkpoint manager
+    checkpoint = tf.train.Checkpoint(optimizer=optimizer, model=autoencoder)
+    checkpoint_manager = tf.train.CheckpointManager(checkpoint, model_path, max_to_keep=3)
+
     @tf.function
     def train_step(batch):
         with tf.GradientTape() as tape:
@@ -63,33 +67,32 @@ def train_autoencoder(sites_graph_path, encoded_graph_path, model_path, batch_si
 
     for epoch in tqdm(range(epochs), desc="Training Epochs"):
         train_loss = 0
-        for batch in tqdm(train_data, desc="Training Batches", leave=False):
+
+        for batch_idx, batch in enumerate(tqdm(train_data, desc="Training Batches", leave=False)):
             loss, encoded = train_step(batch)
             train_loss += loss.numpy()
 
-            # Save encoded sites for the batch
-            for i, file_path in enumerate(data_files[:len(batch)]):
-                encoded_path = os.path.join(encoded_graph_path, os.path.basename(file_path))
-                
-                padded_encoded_data = np.zeros((200, number_of_different_element), dtype=np.float32)
-                for j in range(number_of_different_element):
-                    padded_encoded_data[:encoded.shape[-1], j] = encoded.numpy()[i, :]
+            # Process and save each encoded file in the batch
+            for i in range(len(batch)):  # Iterate over the batch
+                file_index = batch_idx * batch_size + i  # Map to the correct file index
+                if file_index < len(data_files):  # Ensure index is within bounds
+                    file_path = data_files[file_index]
+                    encoded_path = os.path.join(encoded_graph_path, os.path.basename(file_path))
 
-                np.save(encoded_path, padded_encoded_data)
+                    # Save encoded representation to file
+                    padded_encoded_data = np.zeros((200, number_of_different_element), dtype=np.float32)
+                    for j in range(number_of_different_element):
+                        padded_encoded_data[:encoded.shape[-1], j] = encoded.numpy()[i, :]  # Extract the encoded output for this file
+                    np.save(encoded_path, padded_encoded_data)
 
         print(f"Epoch {epoch + 1}, Training Loss: {train_loss / len(train_data):.6f}")
 
-        # Validation
-        test_loss = 0
-        for batch in tqdm(test_data, desc="Validation Batches", leave=False):
-            _, decoded = autoencoder(batch)
-            loss = tf.reduce_mean(tf.square(batch - decoded))
-            test_loss += loss.numpy()
-        print(f"Epoch {epoch + 1}, Validation Loss: {test_loss / len(test_data):.6f}")
+        checkpoint_manager.save()
+
 
     # Save model
-    autoencoder.save(os.path.join(model_path, "autoencoder_model.keras"))
-
+    autoencoder.save(os.path.join(model_path, "autoencoder_model"), save_format="tf")
+    autoencoder.save_weights(os.path.join(model_path, "sites_weights.ckpt"))
 
 def encode_data(autoencoder, data_files, encoded_graph_path):
     if not os.path.exists(encoded_graph_path):
