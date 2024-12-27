@@ -99,7 +99,7 @@ def train_autoencoder(sites_graph_path, encoded_graph_path, model_path, batch_si
 
 
     # Save model
-    autoencoder.save(os.path.join(model_path, "autoencoder_model"), save_format="tf")
+    autoencoder.save(os.path.join(model_path, "autoencoder_model.keras"))
     autoencoder.save_weights(os.path.join(model_path, "sites_weights.ckpt"))
 
 def encode_data(autoencoder, data_files, encoded_graph_path):
