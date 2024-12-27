@@ -87,6 +87,14 @@ def train_autoencoder(sites_graph_path, encoded_graph_path, model_path, batch_si
 
         print(f"Epoch {epoch + 1}, Training Loss: {train_loss / len(train_data):.6f}")
 
+         # Validation
+        test_loss = 0
+        for batch in tqdm(test_data, desc="Validation Batches", leave=False):
+            _, decoded = autoencoder(batch)
+            loss = tf.reduce_mean(tf.square(batch - decoded))
+            test_loss += loss.numpy()
+        print(f"Epoch {epoch + 1}, Validation Loss: {test_loss / len(test_data):.6f}")
+
         checkpoint_manager.save()
 
 
