@@ -7,7 +7,10 @@ from tensorflow.keras.layers import Input, Dense, Reshape, Flatten, Dropout
 from tensorflow.keras.layers import BatchNormalization, Activation, ZeroPadding2D, LeakyReLU, UpSampling2D, Conv2D
 from tensorflow.keras.models import Sequential, Model, load_model
 from tensorflow.keras.optimizers import Adam
+
 from tensorflow.keras import backend as K
+
+from tqdm import tqdm 
 
 def r2_score(y_true, y_pred):
     y_true = K.cast(y_true, dtype='float32')  # Ensure the same type
@@ -108,19 +111,25 @@ class constrain():
         X_test=X[test_idx]
         y_test=y[test_idx]
 
-        for epoch in range(epochs):
+        with tqdm(total=epochs, desc="Training Progress") as pbar:
+            for epoch in range(epochs):
 
-            idx = np.random.randint(0, X_train.shape[0], batch_size)
-            imgs = X_train[idx]
-            valid = y_train[idx]
+                idx = np.random.randint(0, X_train.shape[0], batch_size)
+                imgs = X_train[idx]
+                valid = y_train[idx]
 
-            # Train the constrain
-            d_loss_train = self.constrain.train_on_batch(imgs, valid)
+                # Train the constrain
+                d_loss_train = self.constrain.train_on_batch(imgs, valid)
+                d_loss=self.constrain.test_on_batch(X_test, y_test)
 
-            d_loss=self.constrain.test_on_batch(X_test, y_test)
-
-            # Plot the progress
-            print ("%d [test mse: %f, acc.: %.2f%%] [train mse: %f, acc.: %.2f%%]" % (epoch, d_loss[0], 100*d_loss[1], d_loss_train[0], 100*d_loss[1]))
+                # Update tqdm bar with error metrics
+                pbar.set_postfix({
+                    'train_mse': d_loss_train[0],
+                    'train_acc': 100 * d_loss_train[1],
+                    'test_mse': d_loss[0],
+                    'test_acc': 100 * d_loss[1]
+                })
+                pbar.update(1)
 
         self.constrain.save(model_path)
 
