@@ -221,20 +221,23 @@ def generate_crystal_2d_graph(encodedgraphsavepath='./encoded_sites/',encodedlat
 	filename=os.listdir(encodedlatticesavepath)
 	for eachnpyfile in tqdm(filename, desc='Processing Files', unit='file'):
 		if eachnpyfile.endswith('.npy'):
-			encodeddirectory = encodedlatticesavepath + eachnpyfile
-			crystal_2d_graph = np.zeros([6, 200])
-			encoded_lattice = np.load(encodeddirectory)
-			crystal_2d_graph[0, :] = encoded_lattice.reshape(200)
-			encodeddirectory = encodedgraphsavepath + eachnpyfile
-			for i in range(1, 3):
-				encoded_sites = np.load(encodeddirectory)[:, i - 1]
-				crystal_2d_graph[i, :] = encoded_sites.reshape(200)
-			savefilename = crystal_2d_graph_path + eachnpyfile
-			np.save(savefilename, crystal_2d_graph)
-			for i in range(200):
-				if crystal_2d_graph[0, i] != encoded_lattice[i]:
-					print(crystal_2d_graph[0, i], encoded_lattice[i])
-					exit()
+			try:
+				encodeddirectory = encodedlatticesavepath + eachnpyfile
+				crystal_2d_graph = np.zeros([6, 200])
+				encoded_lattice = np.load(encodeddirectory)
+				crystal_2d_graph[0, :] = encoded_lattice.reshape(200)
+				encodeddirectory = encodedgraphsavepath + eachnpyfile
+				for i in range(1, 3):
+					encoded_sites = np.load(encodeddirectory)[:, i - 1]
+					crystal_2d_graph[i, :] = encoded_sites.reshape(200)
+				savefilename = crystal_2d_graph_path + eachnpyfile
+				np.save(savefilename, crystal_2d_graph)
+				for i in range(200):
+					if crystal_2d_graph[0, i] != encoded_lattice[i]:
+						print(crystal_2d_graph[0, i], encoded_lattice[i])
+						exit()
+			except FileNotFoundError as e:
+				print(e)
 
 def change_lattice_in_crystal_2d_graph(previous_crystal_2d_graph_path='./crystal_2d_graphs/',encodedlatticesavepath='./encoded_lattice/',crystal_2d_graph_path='./crystal_2d_graphs/'):
 	if not os.path.exists(crystal_2d_graph_path):
